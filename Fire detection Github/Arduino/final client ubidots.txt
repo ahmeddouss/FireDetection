@@ -1,0 +1,124 @@
+
+//bibliotheque
+#include <SPI.h>
+#include <RH_RF95.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS.h>
+
+//Variables
+RH_RF95 rf95;
+float frequency = 868.0;
+TinyGPS gps;
+SoftwareSerial ssGps(3, 4);
+char gps_lon[20]={"\0"};  
+char gps_lat[20]={"\0"};
+int MqSensor;
+int MHSensor;
+String CamIA;
+String DATA;
+//ubidots Variables
+String TOKEN;
+String Device_name;
+
+
+void setup() 
+{
+  //Preparing Arduino Setup
+  Serial.begin(9600);
+  ssGps.begin(9600);
+  Serial.println("Start LoRa Client");
+  if (!rf95.init())
+    Serial.println("init failed");
+  rf95.setFrequency(frequency);
+  ssGps.println(TinyGPS::library_version());
+}
+
+void loop()
+{
+  
+  
+  // Check GPS disponibility
+  bool newData = true; 
+  for (unsigned long start = millis(); millis() - start < 1000;)
+  {
+    while (ssGps.available())
+      {
+        char c = ssGps.read();
+        if (gps.encode(c))
+        newData = true;
+      } 
+  }
+
+
+  //Getting GPS data     
+  float flat, flon;
+  unsigned long age;
+  gps.f_get_position(&flat, &flon, &age);               
+  flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6;          
+  flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6; 
+  dtostrf(flat, 0, 6, gps_lat); 
+  dtostrf(flon, 0, 6, gps_lon);
+    
+  
+  //Reading Camera From Raspberry Pi
+  if(Serial.available() > 0)
+  {CamIA = Serial.readStringUntil('\n');}
+  //Fixing Synchronising problem arduino via raspb
+  if (CamIA.substring(0, 1)!="0")
+  {CamIA = CamIA.substring(0, 2);}
+  else 
+  {CamIA = CamIA.substring(0, 1);} 
+
+
+  //Reading Sensors From Arduino
+  MqSensor = analogRead(A0);
+  MHSensor = analogRead(A1);
+
+
+  //Creating DATA on JSON format + instruction to do
+  DATA = "mosquitto_pub -h industrial.api.ubidots.com -p 1883 -u ";
+  DATA += TOKEN;
+  DATA += " -t /v1.6/devices/";
+  DATA += Device_name;
+  DATA += " -m "
+  DATA += "\'{";
+  DATA += "\"location\":{\"value\":1, \"context\":{\"lat\":";
+  DATA += gps_lat;
+  DATA += ", \"lng\":";
+  DATA += gps_lon;
+  DATA += "}}";
+  DATA +=",\"Mq Sensor\":"; 
+  DATA += String(MqSensor);
+  DATA +=",\"MH Sensor\":"; 
+  DATA += String(MHSensor);     
+  DATA +=",\"Cam_IA\":"; 
+  DATA += CamIA;
+  DATA += "}\'";
+
+
+  //Reading DATA
+  Serial.println("SENDING DATA TO LORAWAN:");
+  Serial.printl("MQ Sensor Value:");
+  Serial.println(String(MqSensor));
+  Serial.printl("MH Sensor Value:");
+  Serial.println(String(MqSensor));
+  Serial.println("Camera Detection Value:");
+  Serial.println(CamIA);
+  Serial.printl("GPS values : Lon:");
+  Serial.println(gps_lon);
+  Serial.println(",Lat: ");
+  Serial.println(gps_lat);
+  Serial.println();
+  Serial.println("#############################"):
+
+
+  //Preparing DATA to be sent to the lora Server
+  int DATAlength = DATA.length() ; DATAlength++;
+  uint8_t total[DATAlength];
+  DATA.toCharArray(total, DATAlength);
+  rf95.send(total, DATAlength);
+  rf95.waitPacketSent();
+  delay(500);
+
+ 
+}

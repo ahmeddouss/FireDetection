@@ -1,0 +1,47 @@
+#include <Console.h>
+#include <SPI.h>
+#include <RH_RF95.h>
+#include <Process.h>
+#define BAUDRATE 115200
+String DATA;
+Process p;
+RH_RF95 rf95;
+float frequency = 868.0;
+
+void setup() 
+{   
+  
+  //Preparing Server
+  Bridge.begin(BAUDRATE);
+  Console.begin();
+  while (!Console) ;
+  if (!rf95.init())
+    Console.println("init failed");
+  rf95.setFrequency(frequency);
+  Console.print("Listening on frequency: ");
+  Console.println(frequency);
+
+}
+
+void loop()
+{
+
+
+  if (rf95.available())
+  {
+
+    // Receiving DATA from Arduino   
+    uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+    uint8_t len = sizeof(buf);
+    if (rf95.recv(buf, &len))
+    {
+      //Reading DATA
+      Console.print("got request: ");
+      Console.println((char*)buf);
+      
+      //Sending to Ubidots
+      p.runShellCommand((char*)buf); 
+
+    }
+  }
+}     
