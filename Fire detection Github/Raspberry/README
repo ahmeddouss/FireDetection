@@ -1,0 +1,6 @@
+us.py and utils.py are librarys for Detect
+fire.tflite is the model for the main code 'detect.py'
+to run this code you need:
+  1-plug camera to Raspberry pi
+  2-open rapsberry pi 
+  3-run detect.py (make shure) that all the documets are in the same file
